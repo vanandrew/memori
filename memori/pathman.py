@@ -132,6 +132,7 @@ class PathManager:
     path: str
        A path to manage
     """
+
     def __init__(self, path: str) -> PathManager:
         # keep track of a Path object on the path
         self.pathobj = Path(path)
