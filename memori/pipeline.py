@@ -50,7 +50,7 @@ class Pipeline:
         # initialize results
         self.pipeline_results = dict()
 
-    def run(self, *args, **kwargs) -> None:
+    def run(self, *args, **kwargs) -> Dict:
         """Runs the pipeline. Any stages linked to a "start" keyword accepts
         the input args/kwargs from this run method call.
         """

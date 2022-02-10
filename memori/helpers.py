@@ -205,7 +205,7 @@ def create_symlink_to_path(filename: str, path_to_symlink: str) -> str:
     return filesym
 
 
-def create_symlink_to_folder(target: Path, symlink_root: Path, symlink_name: str) -> None:
+def create_symlink_to_folder(target: Path, symlink_root: Path, symlink_name: str) -> Path:
     """Creates a symlink to target at symlink_root with symlink_name
 
     Parameters
@@ -219,7 +219,7 @@ def create_symlink_to_folder(target: Path, symlink_root: Path, symlink_name: str
 
     Returns
     -------
-    str
+    Path
         The symlink name
     """
     # get the relative path to the target from the symlink_root
@@ -234,7 +234,7 @@ def create_symlink_to_folder(target: Path, symlink_root: Path, symlink_name: str
         Path(symlink_name).symlink_to(relative_target)
 
     # return the symlink Path
-    return symlink_name
+    return symlink_root / symlink_name
 
 
 @contextmanager

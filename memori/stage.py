@@ -5,7 +5,7 @@ import logging
 import hashlib
 from types import CodeType, ModuleType
 from functools import reduce
-from typing import Callable, Dict, List, Union
+from typing import Callable, Dict, List, Tuple, Union
 from .helpers import get_wrapped_callable
 
 
@@ -456,6 +456,59 @@ class Stage:
         return self.stage_has_run
 
 
+def get_modules(methods_list: List[str], top_module: ModuleType) -> List[Tuple[int, ModuleType]]:
+    """Recursive function that grabs all valid modules from the methods_list
+
+    Parameters
+    ----------
+    methods_list: List[str]
+        List of strings containing method/module names
+    top_module: ModuleType
+        A top level module that methods_list should search in
+
+    Returns
+    -------
+    Tuple[int, ModuleType]
+        List of modules and their index in the methods_list
+    """
+    # add modules to modules list if a module
+    modules = list()
+    for i, m in enumerate(methods_list):
+        try:
+            # try getting module
+            loaded_module = getattr(top_module, m)
+            # module was loaded, so add it to list
+            modules.append((i, loaded_module))
+        except AttributeError:  # m is not a submodule
+            pass
+
+    # recusively search for modules using found modules as top level if they were found
+    if len(modules) != 0:
+        # create list to store submodules
+        submodules = list()
+        for index, module in modules:
+            # we only need to add modules past index, since a submodule can only be loaded
+            # if the top level was loaded first
+            try:
+                # get the submodules for this toplevel module
+                toplevel_submodules = get_modules(methods_list[index + 1 :], module)
+                # we need to add index + 1 to the indices of the submodules
+                # to get the proper index of the submodule in the original methods_list
+                toplevel_submodules = [(index + 1 + n, submod) for n, submod in toplevel_submodules]
+                # extend the submodules list
+                submodules.extend(toplevel_submodules)
+            except IndexError:  # hit end of methods_list
+                break
+        # now add all submodules to the modules list
+        modules.extend(submodules)
+
+    # sort modules by index
+    modules.sort(key=lambda x: x[0])
+
+    # return the found modules list
+    return modules
+
+
 def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) -> bytes:
     """Hashes a function into unique bytes.
 
@@ -514,26 +567,49 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
     # these types of objects are usually functions defined inside the
     # currently analyzed callable
     filtered_consts = list()
-    embedded_code_objects = list()
+    code_objects = list()
     for c in consts:
         if code_object_type == type(c):  # check if code object
-            embedded_code_objects.append(get_func_hash(c, this_module))  # record hash
+            code_objects.append(get_func_hash(c, this_module))  # record hash
         else:  # add to the new list
             filtered_consts.append(c)
 
     # now we would like to find other callables that this
     # callable has called
 
-    # find all modules that were loaded by this callable
-    # this may require some brute force searching
+    # find all modules that this function calls
+    modules = get_modules(methods, this_module)
+
+    # for each module, test if it is hashable then (check for __memori_hashable__)
+    # call get_func_hash if it is hashable
+    filtered_methods = list()
+    modules_set = set([m[0] for m in modules])
+    for i, m in enumerate(methods):
+        # if the method is in the modules set, it is a non built-in module
+        if i in modules_set:
+            # get the module
+            module = [t for t in modules if t[0] == i][0][1]
+
+            # if the module is wrapped, unwrap it
+            unwrapped_module = get_wrapped_callable(module)
+            # check if __memori_hashable exists
+            try:
+                if unwrapped_module.__memori_hashable__:  # __memori_hashable__ is always a True attribute
+                    code_objects.append(get_func_hash(module))
+            except AttributeError:
+                # not a hashable function, add to filtered_methods
+                filtered_methods.append(m)
+        else:  # just a python built-in, add it to the filtered_methods
+            filtered_methods.append(m)
 
     # convert back to tuple
     consts = tuple(filtered_consts)
+    methods = tuple(filtered_methods)
 
     # convert to bytes
     consts = str(consts).encode("utf-8")
     methods = str(methods).encode("utf-8")
 
     # return concatenated bytes
-    bytes_list = [consts, methods, code] + embedded_code_objects
+    bytes_list = [consts, methods, code] + code_objects
     return reduce(lambda x, y: x + y, bytes_list)
