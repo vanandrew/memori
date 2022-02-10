@@ -21,10 +21,11 @@ def get_wrapped_callable(func: Callable) -> Callable:
         The original callable unwrapped from decorators.
     """
     # check __wrapped__ property of callable
-    if "__wrapped__" in func.__dir__():
+    if "__wrapped__" in dir(func):
         # make recursive call unwrap another layer of decorator
         # if it exists.
         return get_wrapped_callable(func.__wrapped__)
+
     # return the callable
     return func
 
@@ -311,7 +312,7 @@ def hashable(func: Callable) -> Callable:
     def add_memori_hashable(c):
         c.__memori_hashable__ = True
         # check if another wrapped function under the current function
-        if "__wrapped__" in c.__dir__():
+        if "__wrapped__" in dir(c):
             add_memori_hashable(c.__wrapped__)
 
     # wrap the function

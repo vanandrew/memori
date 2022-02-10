@@ -6,7 +6,17 @@ import importlib
 from pathlib import Path
 from memori import Pipeline, Stage, redefine_result_key
 from memori.stage import get_func_hash
-from memori.helpers import *
+from memori.helpers import (
+    get_wrapped_callable,
+    create_output_path,
+    use_abspaths,
+    create_symlinks_to_input_files,
+    create_symlink_to_path,
+    create_symlink_to_folder,
+    working_directory,
+    use_output_path_working_directory,
+)
+from memori.pathman import get_prefix, get_path_and_prefix, append_suffix, replace_suffix, repath, PathManager
 
 
 def test_stage():
@@ -266,6 +276,7 @@ def test_get_wrapped_callable():
 def test_create_output_path():
     # This function should fail
     try:
+
         @create_output_path
         def fail_function(test):
             return test
@@ -374,3 +385,33 @@ def test_use_output_path_working_directory():
         directory2 = test_function2(d)
         assert directory == d
         assert directory2 != d
+
+
+def test_get_prefix():
+    test_path = "/test0/test1/test2.nii.gz"
+    assert get_prefix(test_path) == "test2"
+    assert PathManager(test_path).get_prefix().path == "test2"
+
+
+def test_get_path_and_prefix():
+    test_path = "/test0/test1/test2.nii.gz"
+    assert get_path_and_prefix(test_path) == "/test0/test1/test2"
+    assert PathManager(test_path).get_path_and_prefix().path == "/test0/test1/test2"
+
+
+def test_append_suffix():
+    test_path = "/test0/test1/test2.nii.gz"
+    assert append_suffix(test_path, "_test3") == "/test0/test1/test2_test3.nii.gz"
+    assert PathManager(test_path).append_suffix("_test3").path == "/test0/test1/test2_test3.nii.gz"
+
+
+def test_replace_suffix():
+    test_path = "/test0/test1_test2"
+    assert replace_suffix(test_path, "_test3") == "/test0/test1_test3"
+    assert PathManager(test_path).replace_suffix("_test3").path == "/test0/test1_test3"
+
+
+def test_repath():
+    test_path = "/test0/test1/test2"
+    assert repath("/test4/test5", test_path) == "/test4/test5/test2"
+    assert PathManager(test_path).repath("/test4/test5").path == "/test4/test5/test2"
