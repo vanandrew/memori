@@ -298,6 +298,9 @@ def use_output_path_working_directory(func: Callable) -> Callable:
 def hashable(func: Callable) -> Callable:
     """Decorator that enables a callable to be hashable by memori.
 
+    NOTE: DO NOT PUT THIS ON A RECURSIVE FUNCTION. IT WILL GIVE
+    YOU AN INFINITE LOOP!!!
+
     Parameters
     ----------
     func : Callable

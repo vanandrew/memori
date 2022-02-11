@@ -4,7 +4,6 @@ from pathlib import Path
 from .helpers import hashable
 
 
-@hashable
 def get_prefix(filename: str) -> str:
     """A convenient function for getting the filename without extension.
 
@@ -26,7 +25,6 @@ def get_prefix(filename: str) -> str:
     return name
 
 
-@hashable
 def get_path_and_prefix(filename: str) -> str:
     """Gets prefix but leaves in the path.
 
@@ -50,7 +48,6 @@ def get_path_and_prefix(filename: str) -> str:
     return os.path.join(dirname, prefix)
 
 
-@hashable
 def append_suffix(filename: str, suffix: str) -> str:
     """Appends a suffix to a given filename.
 
@@ -76,7 +73,6 @@ def append_suffix(filename: str, suffix: str) -> str:
     return prefix + suffix + ext
 
 
-@hashable
 def replace_suffix(filename: str, suffix: str) -> str:
     """Replaces the last suffix in the given filename.
 
@@ -105,7 +101,6 @@ def replace_suffix(filename: str, suffix: str) -> str:
     return prefix + suffix + ext
 
 
-@hashable
 def repath(dirname: str, filename: str) -> str:
     """Changes the directory of a given filename.
 
@@ -148,7 +143,6 @@ class PathManager:
         """
         return self.pathobj.as_posix()
 
-    @hashable
     def get_prefix(self) -> PathManager:
         """Returns the prefix of the managed path's filename
 
@@ -159,7 +153,6 @@ class PathManager:
         """
         return PathManager(get_prefix(self.path))
 
-    @hashable
     def get_path_and_prefix(self) -> PathManager:
         """Returns the prefix of the managed path's filename but also with the path
 
@@ -170,7 +163,6 @@ class PathManager:
         """
         return PathManager(get_path_and_prefix(self.path))
 
-    @hashable
     def append_suffix(self, suffix: str) -> PathManager:
         """Appends a suffix to the path, before any file extensions
 
@@ -193,7 +185,6 @@ class PathManager:
         """
         return PathManager(append_suffix(self.path, suffix))
 
-    @hashable
     def replace_suffix(self, suffix: str) -> PathManager:
         """Replaces the suffix on a path, before any file extension
 
@@ -216,7 +207,6 @@ class PathManager:
         """
         return PathManager(replace_suffix(self.path, suffix))
 
-    @hashable
     def repath(self, dirname: str) -> PathManager:
         """Change the dirname of the currently managed path.
 

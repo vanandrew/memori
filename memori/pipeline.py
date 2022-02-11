@@ -1,10 +1,8 @@
 import os
 from typing import Dict, List
 from .stage import Stage
-from .helpers import hashable
 
 
-@hashable
 class Pipeline:
     """This class defines a processing pipeline linking multiple Stages.
 
