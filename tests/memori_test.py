@@ -137,6 +137,9 @@ def test_pipeline():
     def func7(filename="test"):
         return filename
 
+    def func8(filenames=["test", "test2"]):
+        return filenames[0], filenames[1]
+
     with tempfile.TemporaryDirectory() as d:
         # define stages
         stage0 = Stage(func0, stage_outputs=["z"], hash_output=d)
@@ -189,6 +192,19 @@ def test_pipeline():
             pipeline4.run(filename=f.name)
             assert os.path.isfile(pipeline4.results["filename"])
 
+        # test with two files
+        with tempfile.NamedTemporaryFile() as f1:
+            with tempfile.NamedTemporaryFile() as f2:
+                stage8 = Stage(func8, stage_outputs=["filename", "filename2"], hash_output=d)
+                pipeline5 = Pipeline([("start", stage8)])
+                pipeline5.run(filenames=[f1.name, f2.name])
+                assert os.path.isfile(pipeline5.results["filename"])
+                assert os.path.isfile(pipeline5.results["filename2"])
+                # run again
+                pipeline5.run(filenames=[f1.name, f2.name + "abc"])
+                assert os.path.isfile(pipeline5.results["filename"])
+                assert not os.path.isfile(pipeline5.results["filename2"])
+
         # test stage type checking
         try:
             Pipeline([("invalid_string", lambda x: x)])
@@ -203,28 +219,112 @@ def test_redefine_result_key():
 
 
 def test_hashable():
-    test_file = """
+    test_file0 = """
 from memori.helpers import hashable
+import math
+import os
 
 @hashable
 def test_func(a, b):
+    print(os.path.join("hi", "hi2"))
     return a + b
+
+def no_hash(a):
+    return a + 1
 
 @hashable
 def test_func2(a, b):
-    return test_func(a, b) + 1
+    return test_func(a, b) + no_hash(1) + math.floor(2.5)
+"""
+
+    test_file1 = """
+from memori.helpers import hashable
+import math
+import os
+
+@hashable
+def test_func(a, b):
+    print(os.path.join("hi", "hi2"))
+    return a + b - 1
+
+def no_hash(a):
+    return a + 2
+
+@hashable
+def test_func2(a, b):
+    return test_func(a, b) + no_hash(1) + math.floor(2.5)
 """
 
     test_file2 = """
 from memori.helpers import hashable
 
 @hashable
-def test_func(a, b):
-    return a + b - 1
+class TestClass:
+    def __init__(self):
+        self.a = 1
+
+    def test_method(self):
+        return self.a + 1
+
+    @property
+    def test_prop(self):
+        return 1
+
+    @test_prop.setter
+    def test_prop(self, value):
+        pass
+
+    @test_prop.deleter
+    def test_prop(self):
+        pass
+
+    class TestClass2:
+        def __init__(self):
+            self.a = 1
+
+        def test_method(self):
+            return self.a + 1
 
 @hashable
-def test_func2(a, b):
-    return test_func(a, b) + 1
+def test_func(a, b):
+    tc = TestClass()
+    return tc.test_method() + no_hash(5)
+"""
+
+    test_file3 = """
+from memori.helpers import hashable
+
+@hashable
+class TestClass:
+    def __init__(self):
+        self.a = 1
+
+    def test_method(self):
+        return self.a + 2
+
+    @property
+    def test_prop(self):
+        return 1
+
+    @test_prop.setter
+    def test_prop(self, value):
+        pass
+
+    @test_prop.deleter
+    def test_prop(self):
+        pass
+
+    class TestClass2:
+        def __init__(self):
+            self.a = 1
+
+        def test_method(self):
+            return self.a + 1
+
+@hashable
+def test_func(a, b):
+    tc = TestClass()
+    return tc.test_method() + no_hash(7)
 """
 
     with tempfile.TemporaryDirectory() as d:
@@ -238,7 +338,7 @@ def test_func2(a, b):
 
             # write test file to directory
             with open(os.path.join(mod, "funcs.py"), "w") as f:
-                f.write(test_file)
+                f.write(test_file0)
 
             # append d to sys.path
             sys.path.append(d)
@@ -252,7 +352,7 @@ def test_func2(a, b):
             # write a new test file to directory
             # write test file to directory
             with open(os.path.join(mod, "funcs.py"), "w") as f:
-                f.write(test_file2)
+                f.write(test_file1)
 
             # reload the module
             module = importlib.reload(module)
@@ -262,6 +362,52 @@ def test_func2(a, b):
 
             # hashes should be different
             assert hash0 != hash1
+
+    with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(dir=d) as mod:
+            # get module name
+            module_name = os.path.basename(mod)
+
+            # create init.py at module directory
+            with open(os.path.join(mod, "init.py"), "w") as f:
+                pass
+
+            # write test file to directory
+            with open(os.path.join(mod, "funcs.py"), "w") as f:
+                f.write(test_file2)
+
+            # append d to sys.path
+            sys.path.append(d)
+
+            # load the module
+            module = importlib.import_module(module_name + ".funcs")
+
+            # hash the test_func2 function
+            hash2 = get_func_hash(module.test_func)
+
+    with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(dir=d) as mod:
+            # get module name
+            module_name = os.path.basename(mod)
+
+            # create init.py at module directory
+            with open(os.path.join(mod, "init.py"), "w") as f:
+                pass
+
+            # write test file to directory
+            with open(os.path.join(mod, "funcs.py"), "w") as f:
+                f.write(test_file3)
+
+            # append d to sys.path
+            sys.path.append(d)
+
+            # load the module
+            module = importlib.import_module(module_name + ".funcs")
+
+            # hash the test_func2 function
+            hash3 = get_func_hash(module.test_func)
+
+    assert hash2 != hash3
 
 
 def test_get_wrapped_callable():

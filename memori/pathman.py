@@ -132,6 +132,9 @@ class PathManager:
         # keep track of a Path object on the path
         self.pathobj = Path(path)
 
+    def __repr__(self) -> str:
+        return '<{0}("{1}") at {2}>'.format(type(self).__name__, self.path, hex(id(self)))
+
     @property
     def path(self) -> str:
         """Returns the currently managed path as a string

@@ -1,4 +1,5 @@
 import os
+import inspect
 from pathlib import Path
 import logging
 from functools import wraps
@@ -317,6 +318,24 @@ def hashable(func: Callable) -> Callable:
         # check if another wrapped function under the current function
         if "__wrapped__" in dir(c):
             add_memori_hashable(c.__wrapped__)
+
+    # if this is a class, modify the functions in the class and return
+    if inspect.isclass(func):
+        # loop through the functions of the class
+        for key in func.__dict__:
+            # add __memori_hashable__ to the method
+            if inspect.isfunction(func.__dict__[key]):
+                add_memori_hashable(func.__dict__[key])
+            # add __memori_hashable__ to the property
+            elif type(func.__dict__[key]) is property:
+                if inspect.isfunction(func.__dict__[key].fget):
+                    add_memori_hashable(func.__dict__[key].fget)
+                if inspect.isfunction(func.__dict__[key].fset):
+                    add_memori_hashable(func.__dict__[key].fset)
+                if inspect.isfunction(func.__dict__[key].fdel):
+                    add_memori_hashable(func.__dict__[key].fdel)
+        # return the class
+        return func
 
     # wrap the function
     @wraps(func)
