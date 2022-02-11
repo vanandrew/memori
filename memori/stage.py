@@ -1,4 +1,7 @@
 import importlib
+import inspect
+import dis
+from dis import Instruction
 import os
 import json
 import logging
@@ -509,6 +512,72 @@ def get_modules(methods_list: List[str], top_module: ModuleType) -> List[Tuple[i
     return modules
 
 
+def get_classes_and_functions(instructions: List[Instruction], current_module: ModuleType) -> List[ModuleType]:
+    """Returns a list of classes and functions called by the instruction list
+
+    Parameters
+    ----------
+    instructions : List[Instruction]
+        List of instructions
+    current_module : ModuleType
+        The current module context that these instructions are executing in
+
+    Returns
+    -------
+    List[ModuleType]
+        List of loaded classes and functions
+    """
+    # loop over the instructions list
+    modules = set()  # use set to keep track of modules
+    index = 0  # setup index
+    # loop until end of instructions
+    while(index < len(instructions)):
+        # get the instruction at the index
+        current_instruction = instructions[index]
+
+        # this instruction loaded a module
+        if current_instruction.opname == "LOAD_GLOBAL":
+            # check the current_module for this module
+            a_module = getattr(current_module, current_instruction.argval)
+            # breakpoint()
+            # this module could be a function, a class, or just a module
+            if inspect.isfunction(a_module):  # if function, add to list
+                modules.add(a_module)
+            elif inspect.isclass(a_module):  # if class, also add to list
+                modules.add(a_module)
+            else:  # this is just a module, look at next instructions
+                for subindex in range(index + 1, len(instructions)):
+                    # get next instruction
+                    next_instruction = instructions[subindex]
+                    # if a load attribute, grab the attribute:
+                    if next_instruction.opname == "LOAD_ATTR":
+                        a_module = getattr(a_module, next_instruction.argval)
+                    # else if method, load method and append to list
+                    elif next_instruction.opname == "LOAD_METHOD":
+                        a_module = getattr(a_module, next_instruction.argval)
+                        modules.add(a_module)
+                        break
+                    else:  # Undeterminable...
+                        break
+                # set index to be subindex, only if next_instruction returned a function
+                if next_instruction.opname == "LOAD_METHOD":
+                    index = subindex
+        # this instruction loaded a method, without a preceding global
+        # which probably means its a method call on a class
+        if current_instruction.opname == "LOAD_METHOD":
+            # atm we pass until I can figure out how to parse classes...
+            pass
+
+        # increment the index
+        index += 1
+
+    # convert modules to list
+    modules = list(modules)
+
+    # return the modules list
+    return modules
+
+
 def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) -> bytes:
     """Hashes a function into unique bytes.
 
@@ -548,6 +617,9 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
         # get a reference to code object type
         code_object_type = type(func.__code__)
 
+        # get the instructions that this function calls
+        instructions = [i for i in dis.get_instructions(func.__code__)]
+
         # get the module that this function is from
         this_module = importlib.import_module(func.__module__)
     else:  # this is a code object
@@ -558,6 +630,9 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
 
         # get a reference to code object type
         code_object_type = type(func)
+
+        # get the instructions of this code object
+        instructions = [i for i in dis.get_instructions(func)]
 
         # get the module that this code object is from
         this_module = module
@@ -577,8 +652,13 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
     # now we would like to find other callables that this
     # callable has called
 
-    # find all modules that this function calls
-    modules = get_modules(methods, this_module)
+    # find all functions that this function calls
+    # modules = get_modules(methods, this_module)
+    classes_and_functions = get_classes_and_functions(instructions, this_module)
+    # find where the classes and functions are on the methods list
+    modules = [(methods.index(i.__name__) , i) for i in classes_and_functions if i.__name__ in methods]
+    # sort by index
+    modules.sort(key=lambda x: x[0])
 
     # for each module, test if it is hashable then (check for __memori_hashable__)
     # call get_func_hash if it is hashable
@@ -592,7 +672,7 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
 
             # if the module is wrapped, unwrap it
             unwrapped_module = get_wrapped_callable(module)
-            # check if __memori_hashable exists
+            # check if __memori_hashable__ exists
             try:
                 if unwrapped_module.__memori_hashable__:  # __memori_hashable__ is always a True attribute
                     code_objects.append(get_func_hash(module))
