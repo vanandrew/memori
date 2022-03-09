@@ -519,35 +519,43 @@ def get_methods(instructions: List[Instruction], current_module: ModuleType) -> 
     # convert modules to list
     modules = list(modules)
 
-    # breakdown class into functions
-    bmodules = list()
-    for m in modules:  # loop until no classes
-        # if the object is a class get it's functions and properties
-        if inspect.isclass(m):
-            # loop through class dict properties
-            m_dict = m.__dict__
-            for key in m_dict:
-                # this is a function
-                if inspect.isfunction(m_dict[key]):
-                    bmodules.append(m_dict[key])
-                # this is a class
-                elif inspect.isclass(m_dict[key]):
-                    modules.append(m_dict[key])
-                # this is a property
-                elif type(m_dict[key]) is property:
-                    if inspect.isfunction(m_dict[key].fget):
-                        bmodules.append(m_dict[key].fget)
-                    if inspect.isfunction(m_dict[key].fset):
-                        bmodules.append(m_dict[key].fset)
-                    if inspect.isfunction(m_dict[key].fdel):
-                        bmodules.append(m_dict[key].fdel)
-            # remove class from modules
-            modules.remove(m)
-    # extend modules with bmodules
-    modules.extend(bmodules)
+    # breakdown classes into functions with recursion
+    def get_only_functions(modules):
+        only_function_modules = list()
+        for m in modules:  # loop until no classes
+            # if the object is a class get it's functions and properties
+            if inspect.isclass(m):
+                # loop through class dict properties
+                m_dict = m.__dict__
+                for key in m_dict:
+                    # this is a function
+                    if inspect.isfunction(m_dict[key]):
+                        only_function_modules.append(m_dict[key])
+                    # this is a class
+                    elif inspect.isclass(m_dict[key]):
+                        only_function_modules.extend(get_only_functions([m_dict[key]]))
+                    # this is a property
+                    elif type(m_dict[key]) is property:
+                        if inspect.isfunction(m_dict[key].fget):
+                            only_function_modules.append(m_dict[key].fget)
+                        if inspect.isfunction(m_dict[key].fset):
+                            only_function_modules.append(m_dict[key].fset)
+                        if inspect.isfunction(m_dict[key].fdel):
+                            only_function_modules.append(m_dict[key].fdel)
+            # else add the object to function list
+            else:
+                only_function_modules.append(m)
+        # return list of only function modules
+        return only_function_modules
+
+    # get only function modules
+    bmodules = get_only_functions(modules)
+
+    # sort the modules
+    bmodules.sort(key=lambda x: str(x))
 
     # return the modules list
-    return modules
+    return bmodules
 
 
 def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) -> bytes:
@@ -631,7 +639,11 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
             code_objects.append(get_func_hash(m))
         else:  # if not hashable
             # replace with string representation
-            methods_strs.append("{}.{}".format(m.__module__, m.__qualname__))
+            try:
+                methods_strs.append("{}.{}".format(m.__module__, m.__qualname__))
+            except AttributeError:
+                # Use repr as backup
+                methods_strs.append(m.__repr__())
 
     # convert back to tuple
     consts = tuple(filtered_consts)
