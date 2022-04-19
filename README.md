@@ -27,7 +27,7 @@ of a node of our graph. A `Stage` object can take input/output from/to other `St
 objects, but can also be run in isolation. Here is an example of a `Stage` wrapped
 around a python function:
 
-```
+```python
 # our example function
 def test_function(test_func_var0, test_func_var1, test_func_var2):
     # Do some stuff
@@ -90,7 +90,7 @@ The main feature of `memori` is to `memoize` the inputs to each stage and recall
 if they are the same. This can enable long running functions to be skipped if the results
 are going to be the same!
 
-```
+```python
 # To enable memoization feature, we need to add the hash_output parameter to the
 # when constructing a Stage object. hash_output is just some directory to where the
 # memoization files can be written to.
@@ -130,7 +130,7 @@ This is where the `Pipeline` object comes in. A `Pipeline` is a collection of St
 objects with their input/output connections defined. A `Pipeline` object represents
 the conceptual DAG that was mentioned above.
 
-```
+```python
 # create some stages
 stage0 = Stage(# some params go here...)
 stage1 = Stage(# some params go here...)

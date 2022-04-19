@@ -1,7 +1,6 @@
 from __future__ import annotations
 import os
 from pathlib import Path
-from .helpers import hashable
 
 
 def get_prefix(filename: str) -> str:
@@ -119,7 +118,7 @@ def repath(dirname: str, filename: str) -> str:
     return os.path.join(dirname, os.path.basename(filename))
 
 
-class PathManager:
+class PathManager(type(Path())):
     """This class does provides a convienence methods for path manipulation
 
     Parameters
@@ -127,14 +126,6 @@ class PathManager:
     path: str
        A path to manage
     """
-
-    def __init__(self, path: str) -> PathManager:
-        # keep track of a Path object on the path
-        self.pathobj = Path(path)
-
-    def __repr__(self) -> str:
-        return '<{0}("{1}") at {2}>'.format(type(self).__name__, self.path, hex(id(self)))
-
     @property
     def path(self) -> str:
         """Returns the currently managed path as a string
@@ -144,7 +135,7 @@ class PathManager:
         str
             path as a string
         """
-        return self.pathobj.as_posix()
+        return self.as_posix()
 
     def get_prefix(self) -> PathManager:
         """Returns the prefix of the managed path's filename
