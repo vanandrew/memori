@@ -61,6 +61,9 @@ class Stage:
         func = get_wrapped_callable(self.function_to_call)
         num_of_input_args = func.__code__.co_argcount
         self.stage_inputs = list(func.__code__.co_varnames[:num_of_input_args])
+        # create a default if stage_outpus is None
+        if stage_outputs is None:
+            stage_outputs = ["output"]
         self.stage_outputs = stage_outputs if stage_outputs else list()
         self.stage_outputs = (
             stage_outputs
