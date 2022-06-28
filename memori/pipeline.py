@@ -95,7 +95,7 @@ class Pipeline:
                     raise error
 
             # update pipeline results
-            self.pipeline_results.update(stage_to_run.results)
+            self.pipeline_results.update(stage_to_run.stage_results)
 
         # return results
         return self.pipeline_results

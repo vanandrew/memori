@@ -39,6 +39,8 @@ class Stage:
         A directory that should be created or checked to cache the stage execution.
     stage_name: str
         Override the name for the stage.
+    aliases: Dict
+        A dictionary of aliases for each stage output.
 
     Methods
     -------
@@ -52,6 +54,7 @@ class Stage:
         stage_outputs: List = None,
         hash_output: str = None,
         stage_name: str = None,
+        aliases: Dict = None,
         **kwargs,
     ):
         # store function_to_call
@@ -84,6 +87,9 @@ class Stage:
 
         # create results dictionary
         self.stage_results = dict()
+
+        # store aliases
+        self.stage_aliases = aliases if aliases else dict()
 
         # store hash location
         self._hash_output = hash_output
@@ -480,7 +486,11 @@ class Stage:
     @property
     def results(self) -> Dict:
         """Dict: A dictionary of the output return values for the stage."""
-        return self.stage_results
+        # Loop over aliases and update the stage results with aliases keys
+        results = self.stage_results.copy()
+        for alias, orig_key in self.stage_aliases.items():
+            results[alias] = results[orig_key]
+        return results
 
     @property
     def state(self) -> bool:

@@ -68,8 +68,16 @@ def test_stage():
         with tempfile.NamedTemporaryFile() as f:
             with tempfile.NamedTemporaryFile() as f2:
                 # initial run
-                stage3 = Stage(func, stage_outputs=["z"], hash_output=d)
+                stage3 = Stage(func, stage_outputs=["z"], hash_output=d, aliases={"test": "z"})
                 assert stage3.run(1, 2) == {"z": 3}
+
+                # test aliased result
+                assert stage3.results == {"z": 3, "test": 3}
+                stage3.stage_aliases["test2"] = "z"
+                del stage3.stage_aliases["test"]
+                assert stage3.results == {"z": 3, "test2": 3}
+                del stage3.stage_aliases["test2"]
+                assert stage3.results == {"z": 3}
 
                 # run again, this should load results from cache
                 assert stage3.run(1, 2) == {"z": 3}
@@ -155,6 +163,9 @@ def test_pipeline():
     def func3(b, c, d):
         return (b + c + d, b * c * d)
 
+    def func3_mod(b, c2, d):
+        return (b + c2 + d, b * c2 * d)
+
     def func4(b, c, d):
         return (b + c + d, b * c * d)
 
@@ -174,8 +185,9 @@ def test_pipeline():
         # define stages
         stage0 = Stage(func0, stage_outputs=["z"], hash_output=d)
         stage1 = Stage(func1, a=2, stage_outputs=["b"], hash_output=d)
-        stage2 = Stage(func2, stage_outputs=["c"], hash_output=d)
+        stage2 = Stage(func2, stage_outputs=["c"], hash_output=d, aliases={"c2": "c"})
         stage3 = Stage(func3, d=2, stage_outputs=["e", "f"], hash_output=d)
+        stage3_mod = Stage(func3_mod, d=2, stage_outputs=["e", "f"], hash_output=d)
 
         # create a pipeline
         pipeline0 = Pipeline(
@@ -190,6 +202,13 @@ def test_pipeline():
 
         # test cached results (all tuples are converted to lists)
         assert pipeline0.run(1, 2) == {"z": 3, "b": 6, "c": 18, "e": 26, "f": 216}
+
+        # test with aliased stage output key
+        pipeline0_mod = Pipeline(
+            [("start", stage0), (stage0, stage1), ((stage0, stage1), stage2), ((stage1, stage2), stage3_mod)]
+        )
+        assert pipeline0_mod.run(1, 2) == {"z": 3, "b": 6, "c": 18, "e": 26, "f": 216}
+        assert stage2.results == {"c": 18, "c2": 18}
 
         # test with new stage
         stage4 = Stage(func4, d=1, stage_outputs=["e", "f"], hash_output=d)
