@@ -8,7 +8,7 @@ import logging
 import hashlib
 from types import CodeType, ModuleType
 from functools import reduce
-from typing import Callable, Dict, List, Union
+from typing import Any, Callable, Dict, List, Union
 from .helpers import get_wrapped_callable
 
 
@@ -61,7 +61,7 @@ class Stage:
         func = get_wrapped_callable(self.function_to_call)
         num_of_input_args = func.__code__.co_argcount
         self.stage_inputs = list(func.__code__.co_varnames[:num_of_input_args])
-        # create a default if stage_outpus is None
+        # create a default if stage_outputs is None
         if stage_outputs is None:
             stage_outputs = ["output"]
         self.stage_outputs = stage_outputs if stage_outputs else list()
@@ -86,13 +86,11 @@ class Stage:
         self.stage_results = dict()
 
         # store hash location
-        self.hash_output = hash_output
+        self._hash_output = hash_output
 
         # create hash file locations
         if hash_output:
-            self.stage_hash_location = os.path.join(hash_output, "%s.stage" % self.stage_name)
-            self.input_hash_location = os.path.join(hash_output, "%s.inputs" % self.stage_name)
-            self.output_hash_location = os.path.join(hash_output, "%s.outputs" % self.stage_name)
+            self.hash_output = hash_output
 
     def run(
         self,
@@ -171,6 +169,7 @@ class Stage:
             self.stage_has_run = True
         else:
             logging.info("Skipping stage: %s execution...", self.stage_name)
+            # This next line may not be necessary since results are loaded during _check_hashes above
             self._load_results_from_hash()
 
         # write new hashes after stage has run (or if force_hash_write is set)
@@ -280,7 +279,7 @@ class Stage:
     def _unhash_files_in_dict(self, hash_dict: Dict, xtype: str = "file") -> Dict:
         """Replaces special 'file' dict with hashes or files.
 
-        This method replaces valid a dict containing the following:
+        This method replaces valid files with a dict containing the following:
 
             { "file": file_path, "hash": sha256_hash }
 
@@ -423,6 +422,34 @@ class Stage:
         # return the hash
         return hasher.hexdigest()
 
+    def set_stage_arg(self, arg: str, value: Any) -> None:
+        """Set stage argument.
+
+        Parameters
+        ----------
+        arg: str
+            Argument to set
+        value: Any
+            Value to set argument to
+        """
+        # first check if the arg is valid
+        if arg not in self.stage_inputs:
+            raise ValueError(f"Invalid argument: {arg}\nValid arguments for this stage are: {self.stage_inputs}")
+        self.stage_args[arg] = value
+
+    def del_stage_arg(self, arg: str) -> None:
+        """Delete a stage argument
+
+        Parameters
+        ----------
+        arg : str
+            Argument to delete
+        """
+        # first check if the arg is valid
+        if arg not in self.stage_inputs:
+            raise ValueError(f"Invalid argument: {arg}\nValid arguments for this stage are: {self.stage_inputs}")
+        del self.stage_args[arg]
+
     @property
     def _get_function_byte_code(self) -> bytes:
         """Get bytes of from function code object for hashing."""
@@ -460,6 +487,26 @@ class Stage:
         """bool: A flag that specifies whether the current stage has been run
         (The callable has executed)."""
         return self.stage_has_run
+
+    @property
+    def hash_output(self) -> Union[str, None]:
+        """str: Location of hash files for the stage."""
+        return self._hash_output
+
+    @hash_output.setter
+    def hash_output(self, hash_output: str) -> None:
+        """Set location of hash files for the stage.
+
+        Parameters
+        ----------
+        hash_output: str
+            Location of hash files for the stage.
+        """
+        self._hash_output = hash_output
+        # update locations from the value
+        self.stage_hash_location = os.path.join(hash_output, "%s.stage" % self.stage_name)
+        self.input_hash_location = os.path.join(hash_output, "%s.inputs" % self.stage_name)
+        self.output_hash_location = os.path.join(hash_output, "%s.outputs" % self.stage_name)
 
 
 def get_methods(instructions: List[Instruction], current_module: ModuleType) -> List[ModuleType]:
@@ -618,9 +665,9 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
         # get the module that this code object is from
         this_module = module
 
-    # loop through the consts, if another code object exists in
+    # Loop through the consts, if another code object exists in
     # it delete it from consts and recursively call this function on it.
-    # these types of objects are usually functions defined inside the
+    # These types of objects are usually functions defined inside the
     # currently analyzed callable
     filtered_consts = list()
     code_objects = list()

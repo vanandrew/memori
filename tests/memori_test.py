@@ -3,6 +3,7 @@ import sys
 import tempfile
 import json
 import importlib
+import pytest
 from pathlib import Path
 from memori import Pipeline, Stage, redefine_result_key
 from memori.stage import get_func_hash
@@ -38,11 +39,11 @@ def test_stage():
         ]
 
     # wrap function in a stage
-    stage0 = Stage(func, stage_outputs=["z"])
+    stage0 = Stage(func)
 
     # check stage inputs/outputs
     assert stage0.inputs == ["x", "y"]
-    assert stage0.outputs == ["z"]
+    assert stage0.outputs == ["output"]
 
     # check args
     assert stage0.args == {}
@@ -50,7 +51,7 @@ def test_stage():
     # run stage
     stage0.run(1, 2)
     assert stage0.input_args == {"x": 1, "y": 2}
-    assert stage0.results == {"z": 3}
+    assert stage0.results == {"output": 3}
     assert stage0.state
 
     # test override stage arguments
@@ -81,6 +82,35 @@ def test_stage():
 
                 # should be correct results
                 assert stage3.run(1, 2) == {"z": 3}
+
+                # test stage hashing with different location
+                with tempfile.TemporaryDirectory() as d2:
+                    stage3.hash_output = d2
+                    assert stage3.run(1, 2) == {"z": 3}
+                    assert os.path.isfile(os.path.join(d2, "func.inputs"))
+                    assert os.path.isfile(os.path.join(d2, "func.stage"))
+                    assert os.path.isfile(os.path.join(d2, "func.outputs"))
+                    # test changing stage argument
+                    stage3.set_stage_arg("x", 3)
+                    assert stage3.run(1, 2) == {"z": 5}
+                    stage3.set_stage_arg("y", 4)
+                    assert stage3.run(1, 2) == {"z": 7}
+                    # this should fail
+                    with pytest.raises(ValueError):
+                        stage3.set_stage_arg("z", 3)
+
+                # delete the set stage args
+                for arg in stage3.stage_inputs:
+                    stage3.del_stage_arg(arg)
+                # this should fail
+                with pytest.raises(ValueError):
+                    stage3.del_stage_arg("z")
+                # this should also fail
+                with pytest.raises(KeyError):
+                    stage3.del_stage_arg("x")
+
+                # return stage hash to original location
+                stage3.hash_output = d
 
                 # test file hashing
                 stage4 = Stage(func2, stage_outputs=["a"], hash_output=d)
@@ -485,6 +515,19 @@ def test_create_symlink_to_path():
         with tempfile.NamedTemporaryFile() as f:
             symlink = create_symlink_to_path(f.name, d)
             assert os.path.islink(symlink)
+            assert os.path.realpath(symlink) == f.name
+
+            # test recreating symlink
+            symlink = create_symlink_to_path(f.name, d)
+            assert os.path.islink(symlink)
+            assert os.path.realpath(symlink) == f.name
+
+            # test when a file already exists at the symlink location
+            os.unlink(symlink)
+            Path(symlink).touch()
+            symlink = create_symlink_to_path(f.name, d)
+            assert os.path.islink(symlink)
+            assert os.path.realpath(symlink) == f.name
 
 
 def test_create_symlink_to_folder():
@@ -492,6 +535,17 @@ def test_create_symlink_to_folder():
     with tempfile.TemporaryDirectory() as d:
         with tempfile.TemporaryDirectory() as d2:
             symlink = create_symlink_to_folder(Path(d), Path(d2), "test_link")
+            assert os.path.islink(symlink)
+            assert symlink.resolve() == Path(d)
+
+            # test recreating symlink
+            symlink = create_symlink_to_folder(Path(d), Path(d2), "test_link")
+            assert os.path.islink(symlink)
+            assert symlink.resolve() == Path(d)
+
+            # test when a file already exists at the symlink location
+            Path(os.path.join(d2, "test_link2")).touch()
+            symlink = create_symlink_to_folder(Path(d), Path(d2), "test_link2")
             assert os.path.islink(symlink)
             assert symlink.resolve() == Path(d)
 
