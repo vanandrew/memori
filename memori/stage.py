@@ -98,6 +98,9 @@ class Stage:
         if hash_output:
             self.hash_output = hash_output
 
+        # set flag for stage from hash
+        self.stage_from_hash = False
+
     def run(
         self,
         *args,
@@ -173,10 +176,14 @@ class Stage:
                 self.stage_results[stage_out] = out
             # set stage_has_run
             self.stage_has_run = True
+            # set stage_from_hash to False
+            self.stage_from_hash = False
         else:
             logging.info("Skipping stage: %s execution...", self.stage_name)
             # This next line may not be necessary since results are loaded during _check_hashes above
             self._load_results_from_hash()
+            # set flag indicating stage was loaded from hash
+            self.stage_from_hash = True
 
         # write new hashes after stage has run (or if force_hash_write is set)
         if self.hash_output and (self.stage_has_run or force_hash_write):
@@ -363,7 +370,12 @@ class Stage:
             try:
                 with open(hash_file, "r") as f:
                     io_hash_from_file = self._unhash_files_in_dict(json.load(f), "hash")
-                    return io_hash_from_file == self._unhash_files_in_dict(current_hash_dict, "hash")
+                    hash_match = io_hash_from_file == self._unhash_files_in_dict(current_hash_dict, "hash")
+                    if not hash_match:  # if we didn't match, log the key that did not match
+                        for key in io_hash_from_file:
+                            if io_hash_from_file[key] != current_hash_dict[key]:
+                                logging.info("Hash for %s did not match!", key)
+                    return hash_match
             except json.JSONDecodeError:  # corrupted JSON
                 return False
         else:  # No hash file exists at location

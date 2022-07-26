@@ -3,11 +3,13 @@ import sys
 import tempfile
 import json
 import importlib
+import logging
 import pytest
 from pathlib import Path
 from memori import Pipeline, Stage, redefine_result_key
 from memori.stage import get_func_hash
 from memori.helpers import (
+    hashable,
     get_wrapped_callable,
     create_output_path,
     use_abspaths,
@@ -18,6 +20,9 @@ from memori.helpers import (
     use_output_path_working_directory,
 )
 from memori.pathman import get_prefix, get_path_and_prefix, append_suffix, replace_suffix, repath, PathManager
+
+# set logging to INFO level
+logging.basicConfig(level=logging.INFO)
 
 
 def test_stage():
@@ -376,6 +381,11 @@ def test_func(a, b):
     return tc.test_method() + no_hash(7)
 """
 
+    test_file4 = """
+def test_func(a, b):
+    return a + b
+"""
+
     with tempfile.TemporaryDirectory() as d:
         with tempfile.TemporaryDirectory(dir=d) as mod:
             # get module name
@@ -457,6 +467,39 @@ def test_func(a, b):
             hash3 = get_func_hash(module.test_func)
 
     assert hash2 != hash3
+
+    with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(dir=d) as mod:
+            # get module name
+            module_name = os.path.basename(mod)
+
+            # create init.py at module directory
+            with open(os.path.join(mod, "init.py"), "w") as f:
+                pass
+
+            # write test file to directory
+            with open(os.path.join(mod, "funcs.py"), "w") as f:
+                f.write(test_file4)
+
+            # append d to sys.path
+            sys.path.append(d)
+
+            # load the module
+            module = importlib.import_module(module_name + ".funcs")
+
+            # get the test_func function
+            test_func = module.test_func
+
+            # define a new function
+            def test_func2(a, b):
+                return hashable(test_func)(a, b) + 1
+
+            # run in stage
+            stage = Stage(test_func2, stage_outputs=["c"], hash_output=d)
+            stage.run(1, 2)
+            assert not stage.stage_from_hash
+            stage.run(1, 2)
+            assert stage.stage_from_hash
 
 
 def test_get_wrapped_callable():
