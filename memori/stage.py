@@ -163,6 +163,9 @@ class Stage:
 
         # check stage_should_run
         if stage_should_run:
+            # since we are rerunning the stage, ensure that the stage results
+            # dictionary is reset
+            self.stage_results = dict()
             logging.info("Running stage: %s", self.stage_name)
             # run the function_to_call with the specified input_args
             outputs = self.function_to_call(**self.stage_input_args)
@@ -373,7 +376,10 @@ class Stage:
                     hash_match = io_hash_from_file == self._unhash_files_in_dict(current_hash_dict, "hash")
                     if not hash_match:  # if we didn't match, log the key that did not match
                         for key in io_hash_from_file:
-                            if io_hash_from_file[key] != current_hash_dict[key]:
+                            try:
+                                if io_hash_from_file[key] != current_hash_dict[key]:
+                                    logging.info("Hash for %s did not match!", key)
+                            except KeyError:
                                 logging.info("Hash for %s did not match!", key)
                     return hash_match
             except json.JSONDecodeError:  # corrupted JSON

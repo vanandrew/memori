@@ -1,3 +1,4 @@
+from ast import Break
 import os
 import sys
 import tempfile
@@ -94,6 +95,17 @@ def test_stage():
                 assert stage3.run(1, 2, force_skip_stage=True) == {"z": 4}
 
                 # should be correct results
+                assert stage3.run(1, 2) == {"z": 3}
+
+                # this should rerun the stage due to adding different stage_outputs
+                stage3 = Stage(func, stage_outputs=["z2"], hash_output=d)
+                assert stage3.run(1, 2) == {"z2": 3}
+                assert not stage3.stage_from_hash
+                assert stage3.run(1, 2) == {"z2": 3}
+                assert stage3.stage_from_hash
+
+                # return to original state
+                stage3 = Stage(func, stage_outputs=["z"], hash_output=d, aliases={"test": "z"})
                 assert stage3.run(1, 2) == {"z": 3}
 
                 # test stage hashing with different location
