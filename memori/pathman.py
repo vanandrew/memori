@@ -100,6 +100,32 @@ def replace_suffix(filename: str, suffix: str) -> str:
     return prefix + suffix + ext
 
 
+def delete_suffix(filename: str) -> str:
+    """Deletes the last suffix in the given filename.
+
+    Parameters
+    ----------
+    filename: str
+        Name of file to get the prefix and path.
+
+    Returns
+    -------
+    str
+        Name of file with deleted suffix
+    """
+    # get prefix
+    prefix = get_path_and_prefix(filename)
+
+    # get the extension
+    ext = filename[len(prefix) :]
+
+    # remove last suffix in prefix
+    new_prefix = "_".join(prefix.split("_")[:-1])
+
+    # return filename with new prefix
+    return new_prefix + ext
+
+
 def repath(dirname: str, filename: str) -> str:
     """Changes the directory of a given filename.
 
@@ -126,6 +152,7 @@ class PathManager(type(Path())):
     path: str
        A path to manage
     """
+
     @property
     def path(self) -> str:
         """Returns the currently managed path as a string
@@ -200,6 +227,23 @@ class PathManager(type(Path())):
             path with replaced suffix
         """
         return PathManager(replace_suffix(self.path, suffix))
+
+    def delete_suffix(self) -> PathManager:
+        """Deletes the suffix on a path, before any file extension
+
+        A suffix is definied as ending in "_{SUFFIX}". This method
+        will delete the last suffix.
+
+        >>> p = PathManager("/test/directory/file_suffix.extension")
+        >>> q = p.delete_suffix()
+        >>> # q is now "/test/directory/file.extension")
+
+        Returns
+        -------
+        PathManager
+            path with deleted suffix
+        """
+        return PathManager(delete_suffix(self.path))
 
     def repath(self, dirname: str) -> PathManager:
         """Change the dirname of the currently managed path.

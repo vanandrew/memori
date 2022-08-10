@@ -9,7 +9,7 @@ import hashlib
 from types import CodeType, ModuleType
 from functools import reduce
 from typing import Any, Callable, Dict, List, Union
-from .helpers import get_wrapped_callable
+from .helpers import get_wrapped_callable, hashable
 
 
 class Stage:
@@ -28,6 +28,36 @@ class Stage:
     (e.g. tuples to list, etc) and give unexpected results if not careful.
     In general, the current workaround is to use JSON compatible data
     structures for your function returns.
+
+    The `hash_output` parameter is used to specify a location to store the hash of the
+    stage. This enables memoization of the stage. There are 3 different hashes generated
+    for a stage:
+
+    1. stage hash: hash of the byte code of the function
+    2. input hash: hash of the input arguments
+    3. output hash: hash of the output arguments
+
+    The stage hash is used to check if the function has changed. If the function has
+    changed, the stage will be re-run. The input hash is used to check if the inputs are
+    the same as the previous run. If the inputs are the same, the stage will be skipped,
+    and the results from a previous run will be loaded from the output hash. If `hash_output`
+    was not set stage memoization will be disabled.
+
+    Hashes are saved under the `hash_output` directory with the `stage_name` as the file
+    basename. Hash extensions are .stage, .inputs, .outputs respectively.
+
+    The aliases parameter specifices a mapping for alternative names for `stage_outputs`.
+    This can be useful if the outputs of a stage needs to be referenced by a different name
+    for a downstream stage. For example, if a stage returns an output under the name "example_key"
+    but the downstream stage expects the output to be under the name "example_key_2", the aliases
+    parameter can be used to specify this mapping as follows:
+
+    aliases={"example_key": "example_key_2"}
+
+    This allows the stage output to be referenced by either name in downstream stages.
+
+    Any other keyword parameters specified in the constructor will be passed on to the
+    `function_to_call` when it is executed with the `run` method.
 
     Parameters
     ----------
@@ -110,6 +140,9 @@ class Stage:
         **kwargs,
     ) -> Dict:
         """Call function and save outputs in result dictionary.
+
+        Other positional and keyword arguments can be passed to this method
+        to be passed into the wrapped function to call.
 
         Runs the wrapped function_to_call with given args/kwargs.
         If any kwargs were specified on construction of the stage object,
@@ -481,29 +514,74 @@ class Stage:
 
     @property
     def inputs(self) -> List[str]:
-        """List[str]: A list of input argument names for the stage."""
+        """Inputs argument names for the stage.
+
+        These are the keyword arguments that the stage function takes.
+        Not to be confused with the actual arguments themselves (See `args` and `input_args` instead)
+
+        Returns
+        -------
+        List[str]
+            List of input argument names for the stage.
+        """
         return self.stage_inputs
 
     @property
     def outputs(self) -> List[str]:
-        """List[str]: A list of output argument names for the stage."""
+        """Output arguments names for the stage.
+
+        This is the same as the `stage_outputs` parameter that the Stage takes in on initialization.
+
+        Returns
+        -------
+        List[str]
+            A list of output argument names for the stage.
+        """
         return self.stage_outputs
 
     @property
     def args(self) -> Dict:
-        """Dict: A dictionary of only the provided input arguments to the
-        stage on construction."""
+        """A dictionary of only the provided input arguments to the stage on construction.
+
+        This corresponds to the any keyword arguments that were provided to the Stage object on initialization.
+
+        Returns
+        -------
+        Dict
+            A dictionary of the keyword arguments provided to the Stage object on initialization.
+        """
         return self.stage_args
 
     @property
     def input_args(self) -> Dict:
-        """Dict: A dictionary of all input arguments to the stage. Is only
-        populated after the `run` method is invoked."""
+        """A dictionary of all input arguments to the stage.
+
+        This is only populated after the `run` method is invoked. This will provide a dictionary
+        with the input arguments to the Stage as well as the run method.
+
+        When a Stage was run in a Pipeline. This reports the arguments that were passed to it by other
+        stages in the pipeline.
+
+        Returns
+        -------
+        Dict
+            A dictionary of all input arguments to the stage.
+        """
         return self.stage_input_args
 
     @property
     def results(self) -> Dict:
-        """Dict: A dictionary of the output return values for the stage."""
+        """A dictionary of the output return values for the stage.
+
+        This is only populated after the `run` method is invoked. This will provide a dictionary
+        of the outputs of the stage. If any aliases were provided during initialization, the results
+        dictionary will also contain the output under the alias name keys.
+
+        Returns
+        -------
+        Dict
+            A dictionary of the output return values for the stage.
+        """
         # Loop over aliases and update the stage results with aliases keys
         results = self.stage_results.copy()
         for alias, orig_key in self.stage_aliases.items():
@@ -512,13 +590,24 @@ class Stage:
 
     @property
     def state(self) -> bool:
-        """bool: A flag that specifies whether the current stage has been run
-        (The callable has executed)."""
+        """A flag that specifies whether the current stage has been run (The callable has been executed).
+
+        Returns
+        -------
+        bool
+            True if the stage has been run, False otherwise.
+        """
         return self.stage_has_run
 
     @property
     def hash_output(self) -> Union[str, None]:
-        """str: Location of hash files for the stage."""
+        """Location of hash files for the stage.
+
+        Returns
+        -------
+        Union[str, None]
+            Location of hash files for the stage.
+        """
         return self._hash_output
 
     @hash_output.setter
@@ -555,6 +644,8 @@ def get_methods(instructions: List[Instruction], current_module: ModuleType) -> 
     # loop over the instructions list
     modules = set()  # use set to keep track of modules
     index = 0  # setup index
+    hash_flag = False  # flag to indicate if we are hashing
+    functions_to_hash = set()
     # loop until end of instructions
     while index < len(instructions):
         # get the instruction at the index
@@ -567,8 +658,19 @@ def get_methods(instructions: List[Instruction], current_module: ModuleType) -> 
             if a_module is None:  # module is a build-in, skip
                 index += 1
                 continue
+
+            # if hash_flag was set, record this module function that we need to hash
+            if hash_flag:
+                functions_to_hash.add(a_module)
+                hash_flag = False
+
+            # check if this is the hashable function
+            if a_module is hashable:
+                # set the hashable flag for the next function
+                # this instruction results from hashable(func)(args)
+                hash_flag = True
             # this module could be a function, a class, or just a module
-            if inspect.isfunction(a_module):  # if function, add to list
+            elif inspect.isfunction(a_module):  # if function, add to list
                 modules.add(a_module)
             elif inspect.isclass(a_module):  # if class, also add to list
                 modules.add(a_module)
@@ -589,7 +691,7 @@ def get_methods(instructions: List[Instruction], current_module: ModuleType) -> 
                 # set index to be subindex, only if next_instruction returned a function
                 if next_instruction.opname == "LOAD_METHOD":
                     index = subindex
-        # this instruction call a method, it might be part of an object, so we don't know it's source
+                # this instruction called a method, it might be part of an object, so we don't know it's source
 
         # increment the index
         index += 1
@@ -632,6 +734,11 @@ def get_methods(instructions: List[Instruction], current_module: ModuleType) -> 
     # sort the modules
     bmodules.sort(key=lambda x: str(x))
 
+    # for each function to hash, set the __memori_hashable__ flag
+    for bm in bmodules:
+        if bm in functions_to_hash:
+            bm.__memori_hashable__ = True
+
     # return the modules list
     return bmodules
 
@@ -645,7 +752,7 @@ def get_func_hash(func: Union[Callable, CodeType], module: ModuleType = None) ->
 
         consts, methods, code
 
-    In consts, the doc sting of the code object is removed
+    In consts, the doc string of the code object is removed
     and any embedded code objects are appended to the end
     of bytes array.
 

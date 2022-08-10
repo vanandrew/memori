@@ -53,6 +53,18 @@ class Pipeline:
     def run(self, *args, **kwargs) -> Dict:
         """Runs the pipeline. Any stages linked to a "start" keyword accepts
         the input args/kwargs from this run method call.
+
+        Parameters
+        ----------
+        *args:
+            Positional arguments to pass to the first stage in the pipeline.
+        **kwargs:
+            Keyword arguments to pass to the first stage in the pipeline.
+
+        Returns
+        -------
+        Dict
+            Dictionary containing the results of the pipeline (results of all stages).
         """
         for input_stages, stage_to_run in self.definition:
             # check in input_stages is a "start" stage

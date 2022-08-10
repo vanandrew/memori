@@ -20,7 +20,16 @@ from memori.helpers import (
     working_directory,
     use_output_path_working_directory,
 )
-from memori.pathman import get_prefix, get_path_and_prefix, append_suffix, replace_suffix, repath, PathManager
+from memori.pathman import (
+    delete_suffix,
+    get_prefix,
+    get_path_and_prefix,
+    append_suffix,
+    replace_suffix,
+    delete_suffix,
+    repath,
+    PathManager,
+)
 
 # set logging to INFO level
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +52,10 @@ def test_stage():
         return [
             [a, b, 1],
         ]
+
+    # create a fourth function
+    def func4(a, b):
+        return a, {"some_key": b}, [{"some_key2": a, "some_key3": b}]
 
     # wrap function in a stage
     stage0 = Stage(func)
@@ -165,6 +178,27 @@ def test_stage():
                     output_dict = json.load(hash_file)
                     assert "hash" in output_dict["a"][0] and "file" in output_dict["a"][0]
                     assert "hash" in output_dict["a"][1] and "file" in output_dict["a"][1]
+
+                # test dict hashiing
+                stage6 = Stage(func4, stage_outputs=["a", "b", "c"], hash_output=d)
+                results = stage6.run(f.name, f2.name)
+                assert results == {
+                    "a": f.name,
+                    "b": {"some_key": f2.name},
+                    "c": [{"some_key2": f.name, "some_key3": f2.name}],
+                }
+                with open(os.path.join(d, "func4.inputs")) as hash_file:
+                    input_dict = json.load(hash_file)
+                    assert "hash" in input_dict["a"] and "file" in input_dict["a"]
+                    assert "hash" in input_dict["b"] and "file" in input_dict["b"]
+                with open(os.path.join(d, "func4.outputs")) as hash_file:
+                    output_dict = json.load(hash_file)
+                    assert "hash" in output_dict["a"] and "file" in output_dict["a"]
+                    assert "hash" in output_dict["b"]["some_key"] and "file" in output_dict["b"]["some_key"]
+                    assert "hash" in output_dict["c"][0]["some_key2"] and "file" in output_dict["c"][0]["some_key2"]
+                    assert "hash" in output_dict["c"][0]["some_key3"] and "file" in output_dict["c"][0]["some_key3"]
+                # load from hash output
+                assert results == stage6.run(f.name, f2.name)
 
 
 def test_pipeline():
@@ -683,6 +717,12 @@ def test_replace_suffix():
     test_path = "/test0/test1_test2"
     assert replace_suffix(test_path, "_test3") == "/test0/test1_test3"
     assert PathManager(test_path).replace_suffix("_test3").path == "/test0/test1_test3"
+
+
+def test_delete_suffux():
+    test_path = "/test0/test1_test2"
+    assert delete_suffix(test_path) == "/test0/test1"
+    assert PathManager(test_path).delete_suffix().path == "/test0/test1"
 
 
 def test_repath():
