@@ -1,3 +1,5 @@
+import os
+import signal
 import argparse
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -23,6 +25,7 @@ def main():
         "specify arguments to run for each parallel process and --arg_outputX to specify expected outputs for "
         "each parallel process (where X is a number, starting from 0)",
     )
+    parser.add_argument("-k", "--kill", action="store_true", help="Kill parent script/process on fail.")
     parser.add_argument("--log_file", help="Location to write log file to (--verbose must be on) (Default: None)")
     parser.add_argument("--verbose", help="Prints memori verbose info", action="store_true")
 
@@ -134,6 +137,10 @@ def main():
         out_dict = Stage(func, stage_name=args.name, stage_outputs=stage_outputs, hash_output=args.hash_output).run(
             *arguments
         )
+
+    # kill parent process if specified
+    if args.kill:
+        os.kill(os.getppid(), signal.SIGKILL)
 
     # return output
     return out_dict["output"]
