@@ -19,6 +19,7 @@ from memori.helpers import (
     create_symlink_to_folder,
     working_directory,
     use_output_path_working_directory,
+    script_to_python_func,
 )
 from memori.pathman import (
     delete_suffix,
@@ -729,3 +730,46 @@ def test_repath():
     test_path = "/test0/test1/test2"
     assert repath("/test4/test5", test_path) == "/test4/test5/test2"
     assert PathManager(test_path).repath("/test4/test5").path == "/test4/test5/test2"
+
+
+def test_script_to_python_func():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.NamedTemporaryFile() as tmp_file:
+            script_path = os.path.join(tmp_dir, "script.sh")
+            with open(script_path, "w") as f:
+                f.write("#!/bin/bash\necho 'hello world'")
+            os.chmod(script_path, 0o777)
+
+            test_func = script_to_python_func(script_path, 0, tmp_file.name)
+            assert {"output": 0, "output0": tmp_file.name} == Stage(
+                test_func, stage_outputs=["output", "output0"], hash_output=tmp_dir
+            ).run()
+            assert {"output": 0, "output0": tmp_file.name} == Stage(
+                test_func, stage_outputs=["output", "output0"], hash_output=tmp_dir
+            ).run()
+
+            with open(script_path, "w") as f:
+                f.write("#!/bin/bash\necho $1")
+            os.chmod(script_path, 0o777)
+
+            test_func = script_to_python_func(script_path, 1, [tmp_file.name, tmp_file.name])
+            assert {"output": 0, "output0": tmp_file.name, "output1": tmp_file.name} == Stage(
+                test_func, stage_outputs=["output", "output0", "output1"], hash_output=tmp_dir
+            ).run("1")
+            assert {"output": 0, "output0": tmp_file.name, "output1": tmp_file.name} == Stage(
+                test_func, stage_outputs=["output", "output0", "output1"], hash_output=tmp_dir
+            ).run("1")
+            try:
+                Stage(test_func, hash_output=tmp_dir).run()
+            except TypeError:
+                pass  # this is expected to fail with a TypeError
+
+
+def test_script_memori():
+    from memori.scripts.memori import main
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.NamedTemporaryFile() as f:
+            sys.argv = ["memori", "--verbose", "-o", f.name, "-s", "ls", "-d", tmp_dir, "echo", "1"]
+            assert main() == 0
+            assert main() == 0  # skips execution

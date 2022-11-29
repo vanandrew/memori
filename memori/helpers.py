@@ -1,10 +1,107 @@
 import os
+import sys
 import inspect
+import hashlib
+import tempfile
+import importlib
+import shutil
 from pathlib import Path
+from .pathman import get_prefix
 import logging
 from functools import wraps
 from contextlib import contextmanager
-from typing import Callable
+from typing import Callable, List, Union
+
+
+def script_to_python_func(
+    scripts: Union[str, List[str]], num_args: int, expected_outputs: Union[str, List[str], None] = None
+) -> Callable:
+    """Wrap script in python function
+
+    The scripts argument can take in multiple scripts, but the first
+    script is the one to be executed. The other scripts are used for hashing
+    if the first script depends on them and changes to those scripts need to
+    be accounted for.
+
+    Parameters
+    ----------
+    scripts: Union[str, List[str]]
+        Path to script file.
+    num_args: int
+        Number of arguments that this script accepts.
+    expected_outputs: Union[str, List[str], None]
+        Expected outputs of the script. If None, then no outputs except script success is expected.
+
+    Returns
+    -------
+    Callable
+        Callable for wrapped script.
+    """
+    # initialize sha256 hasher
+    hasher = hashlib.sha256()
+
+    # make list of string
+    if type(scripts) is str:
+        scripts = [
+            scripts,
+        ]
+
+    # convert list of strings to paths
+    script_paths = [s if os.path.exists(s) else shutil.which(s) for s in scripts]
+
+    # loop over scripts
+    for i, script_path in enumerate(script_paths):
+        if script_path is None:
+            raise FileNotFoundError("Script not found: %s" % scripts[i])
+        # open file and hash
+        with open(script_path, "rb") as f:
+            hasher.update(f.read())
+
+    # get hash
+    hash = hasher.hexdigest()
+
+    # set script name
+    script_name = get_prefix(scripts[0])
+
+    # create args list
+    arg_string = ""
+    for i in range(num_args):
+        arg_string += f"arg{i}, "
+
+    # create output string
+    output_string = ""
+    if type(expected_outputs) is str:
+        output_string = f"\"{expected_outputs}\""
+    elif type(expected_outputs) is list:
+        output_string = ", ".join([f"\"{o}\"" for o in expected_outputs])
+
+    # set script text
+    script_text = "#!/usr/bin/env python\n"
+    script_text += "import subprocess\n\n\n"
+    script_text += f"def {script_name}({arg_string}):\n"
+    script_text += f'    hash = "{hash}"\n'
+    script_text += f'    out_process = subprocess.run(["{scripts[0]}", {arg_string}])\n\n'
+    script_text += f"    return out_process.returncode, {output_string}\n"
+
+    # create script path
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        path = os.path.join(tmp_dir, f"{script_name}.py")
+
+        # write script
+        with open(path, "w") as f:
+            f.write(script_text)
+
+        # load the module
+        spec = importlib.util.spec_from_file_location(script_name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[script_name] = module
+        spec.loader.exec_module(module)
+
+        # get function
+        func = getattr(module, script_name)
+
+    # return the path to script
+    return func
 
 
 def get_wrapped_callable(func: Callable) -> Callable:
