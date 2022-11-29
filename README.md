@@ -8,7 +8,10 @@ A python library for creating memoized data and code for neuroimaging pipelines
 ## Table of Contents
 
 1. [Installation](#installation)
-2. [Usage](#usage)
+2. [Command-Line Usage](#command-line-usage)
+    1. [`memori`](#memori)
+    2. [`pathman`](#pathman)
+3. [Python Usage](#python-usage)
     1. [The `Stage` Object](#the-stage-object)
     2. [The `Pipeline` Object](#the-pipeline-object)
     3. [Stage Aliases and Complex Pipelines](#stage-aliases-and-complex-pipelines)
@@ -21,8 +24,86 @@ To install, use `pip`:
 ```
 pip install memori
 ```
+## Command-Line Usage
 
-## Usage
+`memori` can be used to memoize the running of command-line scripts. It is designed
+to check the inputs and sha256 integrity of the calling script and determines whether the running of that calling script should be run or not. It accomplishes
+this through 3 checks:
+
+1. Check against the stored cache that input arguments are all the same.
+2. Check that the sha256 hash of the calling script (and dependents) are the same.
+3. (Optional) Check that the desired outputs match the hashes stored in the cache.
+
+If at least one of these conditions is not met, `memori` will re-run the script.
+
+### memori
+
+The main command-line script to use `memori` is simply called `memori` on the command-line:
+
+```bash
+memori -h [any command/script here]
+```
+
+The above command will let you view the help of the memori script.
+
+To call memori on a script simply add `memori` before the command you want
+to call. For example:
+
+```bash
+# wrapping echo in memori
+memori echo "this echo command has been wrapped in memori"
+```
+
+This will call the `echo` command with `memori`. To cache the running of the
+command, you need to specify the `-d/--hash_output` flag:
+
+```bash
+# same command but with cached run
+memori -d /path/to/cache echo 1
+# the first call will print 1
+memori -d /path/to/cache echo 1
+# running this a second time will not print anything to the screen
+# since the inputs/command is the same, so execution is skipped!
+```
+
+Since memori determines if a calling script has changed through hashing, you
+may want to determine script execution if the calling script depends on another
+script. This can occur if calling script 1 calls script 2 and changes are made
+to script 2. This can be accomplished through the `-c/--dependents` flag.
+
+```bash
+# script execution of script1.sh is now sensitive to changes in script2.sh
+memori -c script2.sh -d /path/to/cache script1.sh arg0 arg1...
+```
+
+If we are expecting certain files to be written from a calling script,
+we can inform `memori` of their existence through the `-o/--outputs` flag.
+`memori` will re-run the calling script if the files are missing/modified.
+
+```bash
+memori -o /path/to/an/expected/output -d /path/to/cache script.sh arg0 arg1...
+```
+
+The `-k/--kill` flag can be used to kill the parent process, if the calling
+script returns an error code. This can be useful to halt a parent script if
+execution has failed.
+
+Use the `--verbose` flag for under the hood logging info!
+
+### pathman
+
+`pathman` is a script that allows for the convenient management of file
+path manipulations.
+
+```bash
+pathman -h
+```
+
+To view the full help.
+
+###
+
+## Python Usage
 
 `memori` uses a directed acyclic graph (DAG) approach to constructing pipelines.
 Nodes of the the graph represent a "logical unit of processing" (up to the user
