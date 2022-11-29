@@ -10,7 +10,6 @@ from memori import Stage
 
 def main():
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("command", nargs="+", help="Command to run and any subsequent arguments")
     parser.add_argument(
         "-c", "--dependents", nargs="+", help="Other scripts/commands that the current command depends on."
     )
@@ -48,6 +47,7 @@ def main():
         """,
         epilog="Andrew Van <vanandrew@wustl.edu> 11/29/2022",
     )
+    parser.add_argument("command", nargs="+", help="Command to run and any subsequent arguments")
 
     # check args for dynamic args beginning with --arg
     n = 0
