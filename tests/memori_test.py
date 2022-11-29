@@ -835,3 +835,30 @@ def test_script_memori():
                     "2",
                 ]
                 assert main() == 1
+
+
+def test_script_pathman():
+    from memori.scripts.pathman import main
+
+    sys.argv = [
+        "pathman",
+        "file",
+        "test",
+    ]
+
+    try:  # except on invalid command
+        main()
+    except ValueError:
+        pass
+
+    sys.argv = [
+        "pathman",
+        "/path/to/file",
+        "get_prefix",
+        "append_suffix",
+        "_test",
+        "replace_suffix",
+        "_test2",
+        "delete_suffix",
+    ]
+    main()
