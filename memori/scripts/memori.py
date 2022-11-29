@@ -99,11 +99,14 @@ def main():
                         "output",
                     ]
                     stage_outputs.extend([f"output{i}" for i in range(len(arg_outputs))])
-                # get function to run
-                func = script_to_python_func(scripts, len(arguments), arg_outputs)
                 # submit job and store future
                 futures[arg_num] = executor.submit(
-                    Stage(func, stage_name=args.name, stage_outputs=stage_outputs, hash_output=hash_output).run,
+                    Stage(
+                        script_to_python_func(scripts, len(arguments), arg_outputs),
+                        stage_name=args.name,
+                        stage_outputs=stage_outputs,
+                        hash_output=hash_output,
+                    ).run,
                     *arguments,
                 )
 
@@ -111,9 +114,9 @@ def main():
             results = [future.result() for future in as_completed([v for v in futures.values()])]
 
             # check if any results failed
-            out_dict = {'output': 0}
-            if any([i['output'] == 1 for i in results]):
-                out_dict['output'] = 1
+            out_dict = {"output": 0}
+            if any([i["output"] == 1 for i in results]):
+                out_dict["output"] = 1
 
     else:  # run single process
         # get function to run

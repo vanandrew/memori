@@ -84,21 +84,22 @@ def script_to_python_func(
     script_text += f"    return out_process.returncode, {output_string}\n"
 
     # create script path
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        path = os.path.join(tmp_dir, f"{script_name}.py")
+    tmp_dir = tempfile.TemporaryDirectory()
+    path = os.path.join(tmp_dir.name, f"{script_name}.py")
 
-        # write script
-        with open(path, "w") as f:
-            f.write(script_text)
+    # write script
+    with open(path, "w") as f:
+        f.write(script_text)
 
-        # load the module
-        spec = importlib.util.spec_from_file_location(script_name, path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[script_name] = module
-        spec.loader.exec_module(module)
+    # load the module
+    spec = importlib.util.spec_from_file_location(script_name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[script_name] = module
+    spec.loader.exec_module(module)
 
-        # get function
-        func = getattr(module, script_name)
+    # get function
+    func = getattr(module, script_name)
+    func.script_location = tmp_dir
 
     # return the path to script
     return func

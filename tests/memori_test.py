@@ -797,25 +797,20 @@ def test_script_memori():
                     "memori",
                     "--verbose",
                     "-p",
-                    "2",
+                    "1",
                     "echo",
                     "--arg0",
                     "1",
-                    "--arg1",
-                    "2",
                     "--arg_output0",
                     "output0",
-                    "--arg_output1",
-                    "output1",
                 ]
                 assert main() == 0
-                assert main() == 0  # skips execution
 
                 # this will raise a value error
                 sys.argv = [
                     "memori",
                     "-p",
-                    "2",
+                    "1",
                     "echo",
                 ]
                 try:
@@ -827,12 +822,10 @@ def test_script_memori():
                 sys.argv = [
                     "memori",
                     "-p",
-                    "2",
+                    "1",
                     "false",
                     "--arg0",
                     "1",
-                    "--arg1",
-                    "2",
                 ]
                 assert main() == 1
 
