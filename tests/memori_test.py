@@ -764,12 +764,74 @@ def test_script_to_python_func():
             except TypeError:
                 pass  # this is expected to fail with a TypeError
 
+            try:  # when script does not exist
+                test_func = script_to_python_func([script_path, "/does/not/exist"], 1, [tmp_file.name, tmp_file.name])
+            except FileNotFoundError:
+                pass
+
 
 def test_script_memori():
     from memori.scripts.memori import main
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         with tempfile.NamedTemporaryFile() as f:
-            sys.argv = ["memori", "--verbose", "-o", f.name, "-s", "ls", "-d", tmp_dir, "echo", "1"]
-            assert main() == 0
-            assert main() == 0  # skips execution
+            with tempfile.NamedTemporaryFile() as log_file:
+                sys.argv = [
+                    "memori",
+                    "--log_file",
+                    log_file.name,
+                    "--verbose",
+                    "-o",
+                    f.name,
+                    "-c",
+                    "ls",
+                    "-d",
+                    tmp_dir,
+                    "echo",
+                    "1",
+                ]
+                assert main() == 0
+                assert main() == 0  # skips execution
+
+                sys.argv = [
+                    "memori",
+                    "--verbose",
+                    "-p",
+                    "2",
+                    "echo",
+                    "--arg0",
+                    "1",
+                    "--arg1",
+                    "2",
+                    "--arg_output0",
+                    "output0",
+                    "--arg_output1",
+                    "output1",
+                ]
+                assert main() == 0
+                assert main() == 0  # skips execution
+
+                # this will raise a value error
+                sys.argv = [
+                    "memori",
+                    "-p",
+                    "2",
+                    "echo",
+                ]
+                try:
+                    main()
+                except ValueError:
+                    pass
+
+                # this will return a non-zero exit code
+                sys.argv = [
+                    "memori",
+                    "-p",
+                    "2",
+                    "false",
+                    "--arg0",
+                    "1",
+                    "--arg1",
+                    "2",
+                ]
+                assert main() == 1
