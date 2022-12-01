@@ -797,7 +797,7 @@ def test_script_memori():
                     "memori",
                     "--verbose",
                     "-p",
-                    "1",
+                    "4",
                     "echo",
                     "--arg0",
                     "1",
@@ -810,7 +810,7 @@ def test_script_memori():
                 sys.argv = [
                     "memori",
                     "-p",
-                    "1",
+                    "4",
                     "echo",
                 ]
                 try:
@@ -822,7 +822,7 @@ def test_script_memori():
                 sys.argv = [
                     "memori",
                     "-p",
-                    "1",
+                    "4",
                     "false",
                     "--arg0",
                     "1",

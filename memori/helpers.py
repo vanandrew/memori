@@ -14,7 +14,10 @@ from typing import Callable, List, Union
 
 
 def script_to_python_func(
-    scripts: Union[str, List[str]], num_args: int, expected_outputs: Union[str, List[str], None] = None
+    scripts: Union[str, List[str]],
+    num_args: int,
+    expected_outputs: Union[str, List[str], None] = None,
+    module_name: str = None,
 ) -> Callable:
     """Wrap script in python function
 
@@ -31,6 +34,8 @@ def script_to_python_func(
         Number of arguments that this script accepts.
     expected_outputs: Union[str, List[str], None]
         Expected outputs of the script. If None, then no outputs except script success is expected.
+    module_name: str
+        Name of module to generate. If None, then the script name is used.
 
     Returns
     -------
@@ -63,6 +68,10 @@ def script_to_python_func(
     # set script name
     script_name = get_prefix(scripts[0])
 
+    # get module name
+    if not module_name:
+        module_name = script_name
+
     # create args list
     arg_string = ""
     for i in range(num_args):
@@ -71,9 +80,9 @@ def script_to_python_func(
     # create output string
     output_string = ""
     if type(expected_outputs) is str:
-        output_string = f"\"{expected_outputs}\""
+        output_string = f'"{expected_outputs}"'
     elif type(expected_outputs) is list:
-        output_string = ", ".join([f"\"{o}\"" for o in expected_outputs])
+        output_string = ", ".join([f'"{o}"' for o in expected_outputs])
 
     # set script text
     script_text = "#!/usr/bin/env python\n"
@@ -85,16 +94,16 @@ def script_to_python_func(
 
     # create script path
     tmp_dir = tempfile.TemporaryDirectory()
-    path = os.path.join(tmp_dir.name, f"{script_name}.py")
+    path = os.path.join(tmp_dir.name, f"{module_name}.py")
 
     # write script
     with open(path, "w") as f:
         f.write(script_text)
 
     # load the module
-    spec = importlib.util.spec_from_file_location(script_name, path)
+    spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
-    sys.modules[script_name] = module
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
 
     # get function

@@ -84,34 +84,45 @@ def main():
         # get dynamic args
         if num_dynamic_args == -1:
             raise ValueError("No dynamic args specified.")
+
+        # sort the arguments using dictionary
         dynamic_args = {
             key: value for key, value in vars(args).items() if key.startswith("arg") and "output" not in key
         }
+
+        # get the expected outputs for each argument
         expected_outputs = {key: value for key, value in vars(args).items() if key.startswith("arg_output")}
+
+        # for each arg, allocate a future in dictionary
+        futures = {i: None for i, _ in enumerate(dynamic_args)}
+
+        # for each arg, create a stage to run
+        stages = [None] * len(dynamic_args)
+        for idx, arguments in dynamic_args.items():
+            arg_num = int(idx.split("g")[1])
+            hash_output = Path(args.hash_output) / f"parallel{arg_num}" if args.hash_output else None
+            stage_outputs = None
+            arg_outputs = None
+            if f"arg_output{arg_num}" in expected_outputs:  # if expected outputs specified
+                arg_outputs = expected_outputs[f"arg_output{arg_num}"]
+                stage_outputs = [
+                    "output",
+                ]
+                stage_outputs.extend([f"output{i}" for i in range(len(arg_outputs))])
+            stages[arg_num] = (
+                Stage(
+                    script_to_python_func(scripts, len(arguments), arg_outputs, f"tmp_module{arg_num}"),
+                    stage_name=args.name,
+                    stage_outputs=stage_outputs,
+                    hash_output=hash_output,
+                ),
+                arguments,
+            )
+
         with ProcessPoolExecutor(max_workers=args.parallel) as executor:
-            # for each dynamic arg, run stage
-            futures = {i: None for i, _ in enumerate(dynamic_args)}
-            for idx, arguments in dynamic_args.items():
-                arg_num = int(idx.split("g")[1])
-                hash_output = Path(args.hash_output) / f"parallel{arg_num}" if args.hash_output else None
-                stage_outputs = None
-                arg_outputs = None
-                if f"arg_output{arg_num}" in expected_outputs:  # if expected outputs specified
-                    arg_outputs = expected_outputs[f"arg_output{arg_num}"]
-                    stage_outputs = [
-                        "output",
-                    ]
-                    stage_outputs.extend([f"output{i}" for i in range(len(arg_outputs))])
+            for idx, (stage, arguments) in enumerate(stages):
                 # submit job and store future
-                futures[arg_num] = executor.submit(
-                    Stage(
-                        script_to_python_func(scripts, len(arguments), arg_outputs),
-                        stage_name=args.name,
-                        stage_outputs=stage_outputs,
-                        hash_output=hash_output,
-                    ).run,
-                    *arguments,
-                )
+                futures[idx] = executor.submit(stage.run, *arguments)
 
             # get results
             results = [future.result() for future in as_completed([v for v in futures.values()])]
