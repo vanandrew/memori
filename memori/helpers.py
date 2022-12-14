@@ -85,12 +85,11 @@ def script_to_python_func(
         output_string = ", ".join([f'"{o}"' for o in expected_outputs])
 
     # set script text
-    script_text = "#!/usr/bin/env python\n"
-    script_text += "import subprocess\n\n\n"
+    script_text = "from memori.logging import setup_logging, run_process\n\n\n"
     script_text += f"def {script_name}({arg_string}):\n"
     script_text += f'    hash = "{hash}"\n'
-    script_text += f'    out_process = subprocess.run(["{scripts[0]}", {arg_string}])\n\n'
-    script_text += f"    return out_process.returncode, {output_string}\n"
+    script_text += f'    returncode = run_process(["{scripts[0]}", {arg_string}])\n\n'
+    script_text += f"    return returncode, {output_string}\n"
 
     # create script path
     tmp_dir = tempfile.TemporaryDirectory()

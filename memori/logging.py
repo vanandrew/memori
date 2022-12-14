@@ -1,6 +1,35 @@
 import sys
 from pathlib import Path
 import logging
+from typing import List
+from subprocess import Popen, PIPE, STDOUT, DEVNULL
+
+
+def run_process(cmd: List[str], stderr_to_stdout: bool = True) -> int:
+    """Runs a shell command in a subprocess, but also log the output to stdout.
+
+    Parameters
+    ----------
+    cmd : List[str]
+        Command and arguments to run
+    stderr_to_stdout : bool, optional
+        If True, stderr will be redirected to stdout, otherwise it will be hidden, by default True
+
+    Returns
+    -------
+    int
+        Return code from process.
+    """
+    if stderr_to_stdout:
+        stderr = STDOUT
+    else:
+        stderr = DEVNULL
+    with Popen(cmd, stdout=PIPE, stderr=stderr, bufsize=1, universal_newlines=True) as p:
+        for line in p.stdout:
+            logging.info(line.rstrip())
+        p.wait()
+        return_value = p.returncode
+    return return_value
 
 
 def setup_logging(log_file: str = None) -> None:

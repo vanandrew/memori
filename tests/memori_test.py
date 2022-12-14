@@ -4,7 +4,6 @@ import sys
 import tempfile
 import json
 import importlib
-import logging
 import pytest
 from pathlib import Path
 from memori import Pipeline, Stage, redefine_result_key
@@ -31,9 +30,7 @@ from memori.pathman import (
     repath,
     PathManager,
 )
-
-# set logging to INFO level
-logging.basicConfig(level=logging.INFO)
+from memori.logging import setup_logging, run_process
 
 
 def test_stage():
@@ -855,3 +852,13 @@ def test_script_pathman():
         "delete_suffix",
     ]
     main()
+
+
+def test_logging():
+    # this doesn't seem to work in pytest
+    setup_logging()
+
+    assert 0 == run_process(["echo", "hello world"])
+    assert 0 == run_process(["echo", "hello world"], stderr_to_stdout=False)
+    assert 1 == run_process(["false"])
+    assert 1 == run_process(["false"])
