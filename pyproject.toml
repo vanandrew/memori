@@ -11,7 +11,8 @@ classifiers = [
   "Programming Language :: Python :: 3",
 ]
 urls = { github = "https://github.com/vanandrew/memori" }
-version = "0.3.4"
+version = "0.3.5"
+dynamic = ["entry-points"]
 
 [project.optional-dependencies]
 dev = [
