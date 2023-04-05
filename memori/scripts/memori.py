@@ -2,7 +2,7 @@ import os
 import signal
 import argparse
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from memori.helpers import script_to_python_func
 from memori.logging import setup_logging
 from memori import Stage
@@ -119,7 +119,7 @@ def main():
                 arguments,
             )
 
-        with ProcessPoolExecutor(max_workers=args.parallel) as executor:
+        with ThreadPoolExecutor(max_workers=args.parallel) as executor:
             for idx, (stage, arguments) in enumerate(stages):
                 # submit job and store future
                 futures[idx] = executor.submit(stage.run, *arguments)
